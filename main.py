@@ -15,20 +15,20 @@ try:  # PyOpenGL
     from OpenGL.GL import *
 except:
     print('Error: PyOpenGL has not been installed.')
-    sys.exit(1)
+    sys.exit(0)
 
 try:  # GLFW
     import glfw
 except:
     print('Error: GLFW has not been installed.')
-    sys.exit(1)
+    sys.exit(0)
 
 # Globals
 
 window = None
 
-windowWidth = 800  # window dimensions
-windowHeight = 800
+windowWidth = 1000  # window dimensions
+windowHeight = 1000
 
 minX = None  # range of points
 maxX = None
@@ -163,12 +163,78 @@ def buildHull(points):
     # Handle base cases of two or three points
     #
     # [YOUR CODE HERE]
-    allPoints = points
-    print(allPoints[0])
-    for p in points:
-        p.highlight = True
+    if len(points) == 1:
+        print("No hull can be formed from a single point")
+        exit()
 
-    display()
+    if len(points)==2:
+        points[0].cwPoint = points[1]
+        points[0].ccwPoint = points[1]
+        points[1].cwPoint = points[0]
+        points[1].ccwPoint = points[0]
+    if  len(points)==3:
+        turnDirec =turn(points[0], points[1], points[2])
+        if turnDirec==1:
+            points[0].ccwPoint = points[1]
+            points[0].cwPoint = points[2]
+            points[1].ccwPoint = points[2]
+            points[2].cwPoint = points[1]
+            points[2].ccwPoint = points[0]
+            points[1].cwPoint = points[0]
+        if turnDirec==2:
+            points[0].ccwPoint = points[2]
+            points[2].cwPoint = points[0]
+            points[2].ccwPoint = points[1]
+            points[1].cwPoint = points[2]
+            points[1].ccwPoint = points[0]
+            points[0].cwPoint = points[1]
+    elif len(points)>3:
+        left=points[:len(points)//2]
+        right=points[(len(points)//2):]
+        buildHull(left)
+        buildHull(right)
+        indx = len(left) - 1
+
+        left1=left[indx]
+        right1=right[0]
+        left2=left[indx]
+        right2=right[0]
+
+        while turn(left1.ccwPoint, left1, right1) == 1 or turn(left1, right1, right1.cwPoint) == 1:
+            if turn(left1.ccwPoint, left1, right1) == 1:
+                discardedPoint=left1
+                left1 = left1.ccwPoint
+                discardedPoint.ccwPoint=None
+            else:
+                discardedPoint=right1
+                right1 = right1.cwPoint
+                discardedPoint.cwPoint=None
+
+        while turn(left2.cwPoint, left2, right2) == 2 or turn(left2, right2, right2.ccwPoint) == 2:
+            if turn(left2.cwPoint, left2, right2) == 2:
+                discardedPoint=left2
+                left2 = left2.cwPoint
+                discardedPoint.cwPoint=None
+            else:
+                discardedPoint=right2
+                right2 = right2.ccwPoint
+                discardedPoint.ccwPoint=None
+
+        left1.cwPoint=right1
+        right1.ccwPoint=left1
+        left2.ccwPoint = right2
+        right2.cwPoint = left2
+    # Check each point to determine what is no longer on hull and delete any remaining pointers inside hull.
+    # Any remaining points with only one pointer with a value equal to None has the other pointer then set
+    # to None as it is not on the hull.
+    for p in points:
+        if ((p.ccwPoint==None) and (p.cwPoint!=None)):
+            p.cwPoint=None
+        if((p.ccwPoint!=None) and (p.cwPoint==None)):
+            p.ccwPoint=None
+
+
+
 
     # Handle recursive case.
     #
@@ -198,7 +264,7 @@ def buildHull(points):
 
     for p in points:
         p.highlight = True
-    display(wait=True)
+        display(wait=True)
 
     # At the very end of buildHull(), you should display the result
     # after every merge, as shown below.  This call to display() does
@@ -234,10 +300,16 @@ def display(wait=False):
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
 
-    windowLeft = -0.1 * (maxX - minX) + minX
-    windowRight = 1.1 * (maxX - minX) + minX
-    windowTop = 1.1 * (maxY - minY) + minY
-    windowBottom = -0.1 * (maxY - minY) + minY
+    if maxX - minX > maxY - minY:  # wider point spread in x direction
+        windowLeft = -0.1 * (maxX - minX) + minX
+        windowRight = 1.1 * (maxX - minX) + minX
+        windowBottom = windowLeft
+        windowTop = windowRight
+    else:  # wider point spread in y direction
+        windowTop = -0.1 * (maxY - minY) + minY
+        windowBottom = 1.1 * (maxY - minY) + minY
+        windowLeft = windowBottom
+        windowRight = windowTop
 
     glOrtho(windowLeft, windowRight, windowBottom, windowTop, 0, 1)
 
@@ -251,17 +323,20 @@ def display(wait=False):
     glfw.swap_buffers(window)
 
     # Maybe wait until the user presses 'p' to proceed
-
+    wait=False
     if wait:
 
         sys.stderr.write('Press "p" to proceed ')
         sys.stderr.flush()
 
         lastKey = None
-        while lastKey != 80:  # wait for 'p'
+        #while lastKey != 80:  # wait for 'p'
+           # glfw.wait_events()
+           # display()
+        while lastKey != 80:
             glfw.wait_events()
             if glfw.window_should_close(window):
-                sys.exit(0)
+                sys.exit(0);
             display()
 
         sys.stderr.write('\r                     \r')
@@ -276,6 +351,7 @@ def keyCallback(window, key, scancode, action, mods):
     if action == glfw.PRESS:
 
         if key == glfw.KEY_ESCAPE:  # quit upon ESC
+            #sys.exit(0)
             glfw.set_window_should_close(window, GL_TRUE)
         else:
             lastKey = key
@@ -322,12 +398,11 @@ def mouseButtonCallback(window, btn, action, keyModifiers):
 
 def main():
     global window, allPoints, minX, maxX, minY, maxY, r, discardPoints
-
     # Check command-line args
-
-    # if len(sys.argv) < 2:
-    #     print( 'Usage: %s filename' % sys.argv[0] )
-    #     sys.exit(1)
+    sys.argv.append("points1.txt")
+    if len(sys.argv) < 2:
+        print('Usage: %s filename' % sys.argv[0])
+        sys.exit(1)
 
     args = sys.argv[1:]
     while len(args) > 1:
@@ -335,6 +410,7 @@ def main():
         if args[0] == '-d':
             discardPoints = not discardPoints
         args = args[1:]
+
     # Set up window
 
     if not glfw.init():
@@ -356,7 +432,7 @@ def main():
 
     # Read the points
 
-    with open('points.txt', 'rb') as f:
+    with open(args[0], 'rb') as f:
         allPoints = [Point(line.split(b' ')) for line in f.readlines()]
 
     # Get bounding box of points
